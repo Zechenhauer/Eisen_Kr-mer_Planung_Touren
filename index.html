@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eisen Krämer - Arbeitszeiterfassung</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --accent-color: #ff9800; /* Eisen-Krämer-Orange */
+            --text-color: #e0e0e0;
+            --text-muted: #888;
+            --success-color: #4caf50;
+            --border-color: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 700px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Lade-Anzeige */
+        .loading-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            border-radius: 12px;
+            z-index: 5;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 15px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        select, input {
+            background: #2a2a2a;
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select {
+            flex: 1;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stats-box {
+            background: #252525;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .stats-val-worked {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--success-color);
+        }
+
+        .stats-val-planned {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .stats-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            margin-bottom: 25px;
+        }
+
+        .weekday {
+            text-align: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 5px 0;
+        }
+
+        .day {
+            background: #252525;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            font-size: 0.95rem;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            padding: 2px;
+        }
+
+        .day:hover {
+            border-color: #fff;
+            background: #2d2d2d;
+        }
+
+        .day.empty {
+            background: transparent;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .day.planned {
+            border: 1.5px solid var(--accent-color);
+        }
+
+        .day.worked {
+            background: rgba(76, 175, 80, 0.15);
+            border: 1.5px solid var(--success-color);
+        }
+
+        .day .hours-badge {
+            font-size: 0.7rem;
+            color: var(--success-color);
+            margin-top: 2px;
+            font-weight: bold;
+        }
+
+        .day .planned-badge {
+            font-size: 0.7rem;
+            color: var(--accent-color);
+            margin-top: 2px;
+            font-weight: bold;
+        }
+
+        .day .tour-badge {
+            font-size: 0.65rem;
+            color: #fff;
+            background: #444;
+            padding: 1px 4px;
+            border-radius: 3px;
+            margin-top: 3px;
+            max-width: 90%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .work-list {
+            margin-top: 25px;
+        }
+
+        .list-title {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            padding-left: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .title-planned {
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .title-worked {
+            border-left: 3px solid var(--success-color);
+        }
+
+        .count-badge {
+            font-size: 0.8rem;
+            background: #333;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: #fff;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+            margin-bottom: 15px;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .no-entries {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 15px;
+            font-style: italic;
+        }
+
+        .btn-action {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-right: 12px;
+            font-weight: bold;
+        }
+
+        .btn-delete {
+            color: #ff5252;
+        }
+
+        .btn-delete:hover {
+            text-decoration: underline;
+        }
+
+        .btn-complete {
+            color: var(--success-color);
+        }
+
+        .btn-complete:hover {
+            text-decoration: underline;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            width: 90%;
+            max-width: 360px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .modal h3 {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .modal-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .modal-select {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 1rem;
+            outline: none;
+            margin-bottom: 15px;
+        }
+
+        .modal input {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            outline: none;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 10px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: bold;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: var(--success-color);
+            color: #fff;
+        }
+
+        .btn-warn {
+            background: var(--accent-color);
+            color: #121212;
+        }
+
+        .btn-secondary {
+            background: #444;
+            color: #fff;
+        }
+
+        .btn-danger {
+            background: #ff5252;
+            color: #fff;
+        }
+
+        .input-group {
+            display: none;
+        }
+        
+        .form-label {
+            display: block;
+            text-align: left;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="loading-overlay" id="loadingOverlay">Daten werden geladen...</div>
+
+    <header>
+        <h1>Eisen Krämer - Arbeitszeiten</h1>
+        <div class="subtitle">Stundennachweis & Dienstplan</div>
+    </header>
+
+    <div class="controls">
+        <select id="monthSelect"></select>
+        <select id="yearSelect"></select>
+    </div>
+
+    <!-- Statistik-Karten -->
+    <div class="stats-container">
+        <div class="stats-box">
+            <div class="stats-val-worked" id="totalHours">0,00 Std.</div>
+            <div class="stats-label">Geleistete Arbeit</div>
+        </div>
+        <div class="stats-box">
+            <div class="stats-val-planned" id="plannedHours">0,00 Std.</div>
+            <div class="stats-label">Geplante Arbeit</div>
+        </div>
+    </div>
+
+    <div class="calendar-grid" id="calendar">
+        <div class="weekday">Mo</div>
+        <div class="weekday">Di</div>
+        <div class="weekday">Mi</div>
+        <div class="weekday">Do</div>
+        <div class="weekday">Fr</div>
+        <div class="weekday">Sa</div>
+        <div class="weekday">So</div>
+    </div>
+
+    <!-- Tabelle 1: Geplante Arbeitstage -->
+    <div class="work-list">
+        <div class="list-title title-planned">
+            <span>Anstehende Arbeitstage (Planung)</span>
+            <span class="count-badge" id="countPlanned">0</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Tour</th>
+                    <th>Stunden</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody id="plannedListBody">
+                <!-- Geplante Tage -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tabelle 2: Absolvierte Arbeitstage -->
+    <div class="work-list">
+        <div class="list-title title-worked">
+            <span>Absolvierte Arbeitstage (Erledigt)</span>
+            <span class="count-badge" id="countWorked">0</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Datum</th>
+                    <th>Tour</th>
+                    <th>Stunden</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody id="workedListBody">
+                <!-- Absolvierte Tage -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- All-in-One Interaktions-Modal -->
+<div class="modal" id="actionModal">
+    <div class="modal-content">
+        <h3 id="modalDateLabel">Tag verwalten</h3>
+        
+        <!-- Auswahl-Bildschirm -->
+        <div id="decisionGroup" class="modal-options">
+            <button class="btn btn-warn" onclick="showPlannedInput()">Als "Geplant" eintragen</button>
+            <button class="btn btn-primary" onclick="showHoursInput()">Arbeitszeit / Stunden eintragen</button>
+            <button class="btn btn-danger" id="modalDeleteBtn" onclick="deleteEntryFromModal()">Eintrag löschen</button>
+            <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+        </div>
+
+        <!-- Stunden-Eingabe-Bildschirm (Absolviert) -->
+        <div id="hoursGroup" class="input-group">
+            <span class="form-label">Tour auswählen:</span>
+            <select id="hoursTourSelect" class="modal-select">
+                <option value="">Keine Tour</option>
+                <option value="Essen">Essen</option>
+                <option value="Moers">Moers</option>
+                <option value="Düsseldorf">Düsseldorf</option>
+                <option value="Duisburg">Duisburg</option>
+                <option value="Sondertour">Sondertour</option>
+            </select>
+            
+            <span class="form-label">Geleistete Stunden:</span>
+            <input type="number" id="hoursInput" step="0.25" min="0" max="24" placeholder="z.B. 7.5">
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="backToDecision()">Zurück</button>
+                <button class="btn btn-primary" onclick="saveHours()">Speichern</button>
+            </div>
+        </div>
+
+        <!-- Geplant-Stunden-Eingabe-Bildschirm (Planung) -->
+        <div id="plannedGroup" class="input-group">
+            <span class="form-label">Tour auswählen:</span>
+            <select id="plannedTourSelect" class="modal-select">
+                <option value="">Keine Tour</option>
+                <option value="Essen">Essen</option>
+                <option value="Moers">Moers</option>
+                <option value="Düsseldorf">Düsseldorf</option>
+                <option value="Duisburg">Duisburg</option>
+                <option value="Sondertour">Sondertour</option>
+            </select>
+            
+            <span class="form-label">Geplante Stunden (auch 0 erlaubt):</span>
+            <input type="number" id="plannedInput" step="0.25" min="0" max="24" placeholder="z.B. 0">
+            
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="backToDecision()">Zurück</button>
+                <button class="btn btn-warn" onclick="savePlanned()">Als geplant speichern</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // DEINE GOOGLE SHEETS WEB APP URL
+    const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbzRmYU3cJp0I4oId0hDXJykn3oLueGtJ3rAIod_IJ8eyPE52Z-z9Jh0W4Mqp-sXI7c3qA/exec";
+
+    let selectedDateStr = "";
+    let data = {};
+
+    const months = [
+        "Januar", "Februar", "März", "April", "Mai", "Juni",
+        "Juli", "August", "September", "Oktober", "November", "Dezember"
+    ];
+
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const calendar = document.getElementById('calendar');
+    const plannedListBody = document.getElementById('plannedListBody');
+    const workedListBody = document.getElementById('workedListBody');
+    const totalHoursEl = document.getElementById('totalHours');
+    const plannedHoursEl = document.getElementById('plannedHours');
+    const countPlannedEl = document.getElementById('countPlanned');
+    const countWorkedEl = document.getElementById('countWorked');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    
+    const actionModal = document.getElementById('actionModal');
+    const modalDateLabel = document.getElementById('modalDateLabel');
+    const decisionGroup = document.getElementById('decisionGroup');
+    const hoursGroup = document.getElementById('hoursGroup');
+    const plannedGroup = document.getElementById('plannedGroup');
+    
+    const hoursInput = document.getElementById('hoursInput');
+    const plannedInput = document.getElementById('plannedInput');
+    const hoursTourSelect = document.getElementById('hoursTourSelect');
+    const plannedTourSelect = document.getElementById('plannedTourSelect');
+    const modalDeleteBtn = document.getElementById('modalDeleteBtn');
+
+    async function init() {
+        months.forEach((m, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx;
+            opt.textContent = m;
+            monthSelect.appendChild(opt);
+        });
+
+        const currentYear = 2026;
+        for (let y = currentYear - 1; y <= currentYear + 2; y++) {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y;
+            yearSelect.appendChild(opt);
+        }
+
+        monthSelect.value = 6; // Standardmäßig Juli
+        yearSelect.value = 2026;
+
+        monthSelect.addEventListener('change', render);
+        yearSelect.addEventListener('change', render);
+
+        // Daten aus Google Sheets holen
+        await loadDataFromSheet();
+    }
+
+    // Lädt die Daten aus Google Tabellen
+    async function loadDataFromSheet() {
+        showLoading(true, "Lade Daten aus Google Sheets...");
+        try {
+            const response = await fetch(SHEET_API_URL);
+            if (response.ok) {
+                data = await response.json();
+                render();
+            } else {
+                console.error("Fehler beim Laden von Google Sheets");
+            }
+        } catch (error) {
+            console.error("Netzwerkfehler:", error);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // Speichert die Daten zurück in Google Sheets
+    async function saveDataToSheet() {
+        showLoading(true, "Speichere in Google Sheets...");
+        try {
+            const response = await fetch(SHEET_API_URL, {
+                method: 'POST',
+                mode: 'no-cors', // Ermöglicht das Senden über verschiedene Domains (CORS)
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+            
+            // Da wir no-cors verwenden, können wir die Antwort nicht direkt auswerten.
+            // Wir warten kurz und laden die Daten neu zur Bestätigung.
+            setTimeout(loadDataFromSheet, 1500);
+        } catch (error) {
+            console.error("Fehler beim Speichern:", error);
+            showLoading(false);
+        }
+    }
+
+    function showLoading(show, message = "") {
+        if (show) {
+            loadingOverlay.textContent = message;
+            loadingOverlay.style.display = 'flex';
+        } else {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    function render() {
+        const month = parseInt(monthSelect.value);
+        const year = parseInt(yearSelect.value);
+
+        renderCalendar(year, month);
+        renderLists(year, month);
+    }
+
+    function renderCalendar(year, month) {
+        const headers = calendar.querySelectorAll('.weekday');
+        calendar.innerHTML = '';
+        headers.forEach(h => calendar.appendChild(h));
+
+        const firstDayIndex = new Date(year, month, 1).getDay();
+        const adjustedFirstDay = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        for (let i = 0; i < adjustedFirstDay; i++) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'day empty';
+            calendar.appendChild(emptyDiv);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'day';
+            
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const entry = data[dateStr];
+
+            const dayNum = document.createElement('div');
+            dayNum.textContent = day;
+            dayDiv.appendChild(dayNum);
+
+            if (entry) {
+                if (entry.status === 'worked') {
+                    dayDiv.classList.add('worked');
+                    const badge = document.createElement('div');
+                    badge.className = 'hours-badge';
+                    badge.textContent = `${entry.hours} Std.`;
+                    dayDiv.appendChild(badge);
+                } else if (entry.status === 'planned') {
+                    dayDiv.classList.add('planned');
+                    const badge = document.createElement('div');
+                    badge.className = 'planned-badge';
+                    badge.textContent = `${entry.hours} Std.`;
+                    dayDiv.appendChild(badge);
+                }
+
+                if (entry.tour) {
+                    const tourBadge = document.createElement('div');
+                    tourBadge.className = 'tour-badge';
+                    tourBadge.textContent = entry.tour;
+                    dayDiv.appendChild(tourBadge);
+                }
+            }
+
+            dayDiv.onclick = () => openModal(dateStr, day, months[month]);
+            calendar.appendChild(dayDiv);
+        }
+    }
+
+    function renderLists(year, month) {
+        plannedListBody.innerHTML = '';
+        workedListBody.innerHTML = '';
+        
+        let totalHours = 0;
+        let totalPlannedHours = 0;
+        let countPlanned = 0;
+        let countWorked = 0;
+        const prefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+        const sortedKeys = Object.keys(data).filter(key => key.startsWith(prefix)).sort();
+
+        sortedKeys.forEach(key => {
+            const entry = data[key];
+            const [_, m, d] = key.split('-');
+            const displayDate = `${d}.${m}.${year}`;
+            const hrs = parseFloat(entry.hours || 0);
+            const tourName = entry.tour ? entry.tour : 'Keine Tour';
+
+            if (entry.status === 'planned') {
+                countPlanned++;
+                totalPlannedHours += hrs;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${displayDate}</td>
+                    <td><span style="color: var(--accent-color); font-weight: bold;">${tourName}</span></td>
+                    <td><strong>${hrs.toFixed(2).replace('.', ',')} Std.</strong></td>
+                    <td>
+                        <button class="btn-action btn-complete" onclick="markPlannedAsWorked('${key}')">Erledigt (Stunden verbuchen)</button>
+                        <button class="btn-action btn-delete" onclick="deleteEntry('${key}')">Löschen</button>
+                    </td>
+                `;
+                plannedListBody.appendChild(tr);
+            } else if (entry.status === 'worked') {
+                countWorked++;
+                totalHours += hrs;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${displayDate}</td>
+                    <td><span style="color: var(--success-color); font-weight: bold;">${tourName}</span></td>
+                    <td><strong>${hrs.toFixed(2).replace('.', ',')} Std.</strong></td>
+                    <td>
+                        <button class="btn-action btn-delete" onclick="deleteEntry('${key}')">Löschen</button>
+                    </td>
+                `;
+                workedListBody.appendChild(tr);
+            }
+        });
+
+        if (countPlanned === 0) {
+            plannedListBody.innerHTML = `<tr><td colspan="4" class="no-entries">Keine geplanten Termine für diesen Monat.</td></tr>`;
+        }
+        if (countWorked === 0) {
+            workedListBody.innerHTML = `<tr><td colspan="4" class="no-entries">Noch keine absolvierten Stunden eingetragen.</td></tr>`;
+        }
+
+        totalHoursEl.textContent = `${totalHours.toFixed(2).replace('.', ',')} Std.`;
+        plannedHoursEl.textContent = `${totalPlannedHours.toFixed(2).replace('.', ',')} Std.`;
+        countPlannedEl.textContent = countPlanned;
+        countWorkedEl.textContent = countWorked;
+    }
+
+    function openModal(dateStr, day, monthName) {
+        selectedDateStr = dateStr;
+        modalDateLabel.textContent = `${day}. ${monthName} 2026`;
+        
+        decisionGroup.style.display = 'flex';
+        hoursGroup.style.display = 'none';
+        plannedGroup.style.display = 'none';
+
+        if (data[dateStr]) {
+            modalDeleteBtn.style.display = 'block';
+        } else {
+            modalDeleteBtn.style.display = 'none';
+        }
+
+        actionModal.style.display = 'flex';
+    }
+
+    function closeModal() {
+        actionModal.style.display = 'none';
+    }
+
+    function showHoursInput() {
+        decisionGroup.style.display = 'none';
+        hoursGroup.style.display = 'block';
+        hoursInput.value = (data[selectedDateStr] && data[selectedDateStr].hours !== undefined) ? data[selectedDateStr].hours : "";
+        hoursTourSelect.value = (data[selectedDateStr] && data[selectedDateStr].tour) || "";
+        hoursInput.focus();
+    }
+
+    function showPlannedInput() {
+        decisionGroup.style.display = 'none';
+        plannedGroup.style.display = 'block';
+        plannedInput.value = (data[selectedDateStr] && data[selectedDateStr].hours !== undefined) ? data[selectedDateStr].hours : "";
+        plannedTourSelect.value = (data[selectedDateStr] && data[selectedDateStr].tour) || "";
+        plannedInput.focus();
+    }
+
+    function backToDecision() {
+        hoursGroup.style.display = 'none';
+        plannedGroup.style.display = 'none';
+        decisionGroup.style.display = 'flex';
+    }
+
+    function savePlanned() {
+        const val = parseFloat(plannedInput.value);
+        const tour = plannedTourSelect.value;
+        if (!isNaN(val) && val >= 0) {
+            data[selectedDateStr] = { status: 'planned', hours: val, tour: tour };
+            saveAndRefresh();
+            closeModal();
+        } else {
+            alert("Bitte trage eine gültige geplante Stundenzahl ein (z.B. 0 oder mehr).");
+        }
+    }
+
+    function saveHours() {
+        const val = parseFloat(hoursInput.value);
+        const tour = hoursTourSelect.value;
+        if (!isNaN(val) && val > 0) {
+            data[selectedDateStr] = { status: 'worked', hours: val, tour: tour };
+            saveAndRefresh();
+            closeModal();
+        } else {
+            alert("Bitte trage eine gültige Stundenzahl ein.");
+        }
+    }
+
+    function markPlannedAsWorked(key) {
+        selectedDateStr = key;
+        const [y, m, d] = key.split('-');
+        const monthName = months[parseInt(m) - 1];
+        openModal(key, parseInt(d), monthName);
+        showHoursInput();
+    }
+
+    function deleteEntry(key) {
+        if (confirm("Eintrag für diesen Tag wirklich löschen?")) {
+            delete data[key];
+            saveAndRefresh();
+        }
+    }
+
+    function deleteEntryFromModal() {
+        if (confirm("Eintrag für diesen Tag wirklich löschen?")) {
+            delete data[selectedDateStr];
+            saveAndRefresh();
+            closeModal();
+        }
+    }
+
+    function saveAndRefresh() {
+        saveDataToSheet();
+    }
+
+    window.onclick = function(event) {
+        if (event.target == actionModal) {
+            closeModal();
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
