@@ -734,8 +734,9 @@
             yearSelect.appendChild(opt);
         }
 
-        monthSelect.value = 6; // Standard: Juli
-        yearSelect.value = 2026;
+        const today = new Date();
+        monthSelect.value = today.getMonth();      // Setzt den aktuellen Monat (z.B. 7 für August)
+        yearSelect.value = today.getFullYear();    // Setzt das aktuelle Jahr (2026)
 
         monthSelect.addEventListener('change', () => { updateCarryInputDisplay(); render(); });
         yearSelect.addEventListener('change', () => { updateCarryInputDisplay(); render(); });
